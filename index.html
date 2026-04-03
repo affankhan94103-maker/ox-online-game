@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>🔥 OX PRO MAX 🔥</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial;
+    text-align:center;
+    color:#0ff;
+    background:black;
+}
+
+h1{
+    text-shadow:0 0 20px #0ff;
+}
+
+.board{
+    display:grid;
+    grid-template-columns:repeat(3,110px);
+    gap:10px;
+    justify-content:center;
+    margin-top:20px;
+}
+
+.cell{
+    width:110px;height:110px;
+    font-size:50px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    border:2px solid #0ff;
+    box-shadow:0 0 15px #0ff;
+    transition:0.2s;
+}
+
+.cell:hover{
+    transform:scale(1.1);
+}
+
+.win{
+    background:#0ff;
+    color:black;
+}
+
+button,select{
+    margin:5px;
+    padding:8px 15px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+#popup{
+    position:fixed;
+    top:0;left:0;
+    width:100%;height:100%;
+    display:none;
+    justify-content:center;
+    align-items:center;
+    background:rgba(0,0,0,0.8);
+    font-size:30px;
+}
+
+.shake{
+    animation:shake 0.3s;
+}
+
+@keyframes shake{
+    0%{transform:translate(0)}
+    25%{transform:translate(5px)}
+    50%{transform:translate(-5px)}
+    75%{transform:translate(5px)}
+    100%{transform:translate(0)}
+}
+</style>
+</head>
+
+<body>
+
+<h1>🔥 OX PRO MAX 🔥</h1>
+
+<select id="mode">
+<option value="ai">AI 🤖</option>
+<option value="two">2 Player 👥</option>
+</select>
+
+<h3 id="status">Turn: X</h3>
+
+<h3>
+💰 Coins: <span id="coins">100</span> |
+🏆 Level: <span id="level">1</span> |
+🔥 Streak: <span id="streak">0</span>
+</h3>
+
+<div class="board" id="board"></div>
+
+<button onclick="restart()">Restart</button>
+
+<div id="popup"></div>
+
+<script>
+let board=["","","","","","","","",""];
+let currentPlayer="X";
+let gameActive=true;
+
+let coins=100,level=1,streak=0;
+
+const boardDiv=document.getElementById("board");
+const statusText=document.getElementById("status");
+
+const clickSound=new Audio("https://www.soundjay.com/buttons/sounds/button-16.mp3");
+const winSound=new Audio("https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3");
+
+function createBoard(){
+    boardDiv.innerHTML="";
+    board.forEach((v,i)=>{
+        let cell=document.createElement("div");
+        cell.classList.add("cell");
+        cell.innerText=v;
+        cell.onclick=()=>move(i);
+        boardDiv.appendChild(cell);
+    });
+}
+
+function move(i){
+    if(board[i]!==""||!gameActive)return;
+
+    clickSound.play();
+    board[i]=currentPlayer;
+    createBoard();
+
+    let win=checkWin(currentPlayer);
+
+    if(win){
+        highlight(win);
+        endGame(currentPlayer+" Wins!");
+        winSound.play();
+
+        if(currentPlayer==="X"){
+            coins+=20; streak++;
+        }else{
+            coins-=10; streak=0;
+        }
+
+        if(streak>=3){
+            level++;
+            streak=0;
+        }
+
+        updateUI();
+        shakeScreen();
+        return;
+    }
+
+    if(!board.includes("")){
+        endGame("Draw!");
+        return;
+    }
+
+    currentPlayer=currentPlayer==="X"?"O":"X";
+    statusText.innerText="Turn: "+currentPlayer;
+
+    if(document.getElementById("mode").value==="ai" && currentPlayer==="O"){
+        setTimeout(aiMove,400);
+    }
+}
+
+function aiMove(){
+    let best=-1;
+
+    for(let i=0;i<9;i++){
+        if(board[i]===""){
+            board[i]="O";
+            if(checkWin("O")){board[i]="";move(i);return;}
+            board[i]="";
+        }
+    }
+
+    for(let i=0;i<9;i++){
+        if(board[i]===""){
+            board[i]="X";
+            if(checkWin("X")){board[i]="";move(i);return;}
+            board[i]="";
+        }
+    }
+
+    let empty=board.map((v,i)=>v===""?i:null).filter(v=>v!==null);
+    move(empty[Math.floor(Math.random()*empty.length)]);
+}
+
+function checkWin(p){
+    let w=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for(let c of w){
+        if(c.every(i=>board[i]===p)) return c;
+    }
+    return null;
+}
+
+function highlight(p){
+    let cells=document.querySelectorAll(".cell");
+    p.forEach(i=>cells[i].classList.add("win"));
+}
+
+function endGame(msg){
+    let popup=document.getElementById("popup");
+    popup.innerText="🎉 "+msg;
+    popup.style.display="flex";
+    gameActive=false;
+}
+
+function restart(){
+    board=["","","","","","","","",""];
+    currentPlayer="X";
+    gameActive=true;
+    statusText.innerText="Turn: X";
+    document.getElementById("popup").style.display="none";
+    createBoard();
+}
+
+function updateUI(){
+    document.getElementById("coins").innerText=coins;
+    document.getElementById("level").innerText=level;
+    document.getElementById("streak").innerText=streak;
+}
+
+function shakeScreen(){
+    document.body.classList.add("shake");
+    setTimeout(()=>document.body.classList.remove("shake"),300);
+}
+
+createBoard();
+updateUI();
+</script>
+
+</body>
+</html>
