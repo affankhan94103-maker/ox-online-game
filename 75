@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>🔥 OX PRO MAX 🔥</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial;
+    background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+.container{
+    background:rgba(255,255,255,0.05);
+    padding:20px;
+    border-radius:20px;
+    backdrop-filter:blur(15px);
+    box-shadow:0 0 40px rgba(0,255,255,0.2);
+    text-align:center;
+    color:#fff;
+}
+
+.board{
+    display:grid;
+    grid-template-columns:repeat(3,100px);
+    gap:10px;
+    justify-content:center;
+    margin:20px 0;
+}
+
+.cell{
+    width:100px;height:100px;
+    font-size:40px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    border:2px solid #00ffff;
+    transition:0.2s;
+}
+
+.cell:hover{
+    box-shadow:0 0 20px #00ffff;
+}
+
+button{
+    background:linear-gradient(45deg,#00ffff,#00ff99);
+    border:none;
+    padding:10px 20px;
+    border-radius:25px;
+    font-weight:bold;
+    cursor:pointer;
+    margin:5px;
+}
+
+#popup{
+    position:fixed;
+    top:0;left:0;
+    width:100%;height:100%;
+    display:none;
+    justify-content:center;
+    align-items:center;
+    background:rgba(0,0,0,0.7);
+}
+
+.popup-box{
+    background:#111;
+    padding:30px;
+    border-radius:15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🔥 OX PRO MAX 🔥</h1>
+
+<button onclick="login()">Login 🔐</button>
+<button onclick="shareRoom()">Share 🔗</button>
+
+<h3 id="status">Loading...</h3>
+
+<div class="board" id="board"></div>
+
+<div id="leaderboard"></div>
+
+<button onclick="restart()">Restart</button>
+
+</div>
+
+<div id="popup">
+  <div class="popup-box" id="popupText"></div>
+</div>
+
+<script>
+// 🔥 FIREBASE CONFIG (REPLACE THIS)
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "YOUR_DOMAIN",
+  databaseURL: "YOUR_DB_URL",
+  projectId: "YOUR_ID",
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+// 🔐 LOGIN
+let user = null;
+
+function login(){
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider);
+}
+
+auth.onAuthStateChanged(u=>{
+    if(u){
+        user = u;
+        loadLeaderboard();
+    }
+});
+
+// 🎮 ROOM SYSTEM
+const params = new URLSearchParams(window.location.search);
+let room = params.get("room");
+
+if(!room){
+    room = Math.random().toString(36).substr(2,6);
+    window.location.search = "?room=" + room;
+}
+
+const gameRef = db.ref("rooms/" + room);
+
+// 🧠 PLAYER ID
+let playerId = localStorage.getItem("playerId");
+if(!playerId){
+    playerId = Math.random().toString(36).substr(2,9);
+    localStorage.setItem("playerId", playerId);
+}
+
+let player = "";
+let board = ["","","","","","","","",""];
+let currentPlayer = "X";
+let gameActive = true;
+
+// 👥 JOIN ROOM
+gameRef.transaction(data=>{
+    if(!data){
+        player="X";
+        return {
+            board:["","","","","","","","",""],
+            turn:"X",
+            players:{X:playerId,O:null}
+        };
+    }
+
+    if(!data.players.O){
+        player="O";
+        data.players.O = playerId;
+        return data;
+    }
+
+    return data;
+}, ()=>{
+    if(player) alert("You are: " + player);
+});
+
+// 🎯 BOARD UI
+const boardDiv = document.getElementById("board");
+const statusText = document.getElementById("status");
+
+function createBoard(){
+    boardDiv.innerHTML="";
+    board.forEach((v,i)=>{
+        let cell=document.createElement("div");
+        cell.className="cell";
+        cell.innerText=v;
+        cell.onclick=()=>move(i);
+        boardDiv.appendChild(cell);
+    });
+}
+
+// 🚀 MOVE (SECURE)
+function move(i){
+    gameRef.transaction(data=>{
+        if(!data) return;
+        if(data.turn !== player) return;
+        if(data.board[i] !== "") return;
+        if(data.players[player] !== playerId) return;
+
+        data.board[i] = player;
+        data.turn = player==="X"?"O":"X";
+        return data;
+    });
+}
+
+// 🔄 SYNC
+gameRef.on("value", snap=>{
+    let data = snap.val();
+    if(!data) return;
+
+    board = data.board;
+    currentPlayer = data.turn;
+
+    createBoard();
+
+    if(player === currentPlayer){
+        statusText.innerText = "🔥 Your Turn";
+    }else{
+        statusText.innerText = "⏳ Opponent Turn";
+    }
+
+    checkGame();
+});
+
+// 🏆 WIN CHECK
+function checkGame(){
+    const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for(let w of wins){
+        if(w.every(i=>board[i]=== "X")){
+            endGame("X Wins!");
+            saveUser(20);
+        }
+        if(w.every(i=>board[i]=== "O")){
+            endGame("O Wins!");
+            saveUser(20);
+        }
+    }
+}
+
+// 💰 SAVE USER
+function saveUser(coins){
+    if(!user) return;
+
+    db.ref("users/"+user.uid).update({
+        name:user.displayName,
+        coins:coins
+    });
+}
+
+// 🏆 LEADERBOARD
+function loadLeaderboard(){
+    db.ref("users").orderByChild("coins").limitToLast(5)
+    .on("value", snap=>{
+        let data = snap.val();
+        if(!data) return;
+
+        let html="<h3>🏆 Leaderboard</h3>";
+        Object.values(data).reverse().forEach(u=>{
+            html+=`<p>${u.name} - 💰 ${u.coins}</p>`;
+        });
+
+        document.getElementById("leaderboard").innerHTML=html;
+    });
+}
+
+// 🔁 RESTART
+function restart(){
+    gameRef.update({
+        board:["","","","","","","","",""],
+        turn:"X"
+    });
+    document.getElementById("popup").style.display="none";
+}
+
+// 🎉 POPUP
+function endGame(msg){
+    document.getElementById("popupText").innerText=msg;
+    document.getElementById("popup").style.display="flex";
+}
+
+// 🔗 SHARE
+function shareRoom(){
+    navigator.clipboard.writeText(window.location.href);
+    alert("Link copied!");
+}
+
+createBoard();
+</script>
+
+</body>
+</html>
